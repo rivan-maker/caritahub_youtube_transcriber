@@ -219,8 +219,15 @@ def ydl_meta(url: str) -> dict:
 
 
 def ydl_download(url: str, out_dir: str, player_client: Optional[str] = None) -> dict:
+    # Prefer direct HTTP audio (m4a/webm) over HLS (m3u8_native) — YouTube serves
+    # HLS via SABR for some clients, which produces empty downloads.
     opts = {
-        "format": "bestaudio/best",
+        "format": (
+            "bestaudio[protocol^=http][ext=m4a]/"
+            "bestaudio[protocol^=http][ext=webm]/"
+            "bestaudio[protocol!=m3u8_native]/"
+            "bestaudio/best"
+        ),
         "outtmpl": f"{out_dir}/audio.%(ext)s",
         "quiet": True,
     }
@@ -243,7 +250,9 @@ def run_transcription(job_id: str, url: str, language: str, model_size: str):
         if video_id:
             try:
                 job_update(job_id, status="fetching_captions", progress="fetching captions")
-                tlist = YouTubeTranscriptApi.list_transcripts(video_id)
+                # youtube-transcript-api v1.x: use instance methods instead of classmethods
+                _ytt = YouTubeTranscriptApi()
+                tlist = _ytt.list(video_id)
                 lang_prefs = (
                     ["en"] if language == "auto" else [language]
                 ) + ["en", "zh-Hans", "zh-Hant", "yue", "ja", "ko", "ms"]
@@ -251,7 +260,19 @@ def run_transcription(job_id: str, url: str, language: str, model_size: str):
                     t = tlist.find_manually_created_transcript(lang_prefs)
                 except Exception:
                     t = tlist.find_generated_transcript(lang_prefs)
-                entries = t.fetch()
+                # In v1.x, fetch() returns a FetchedTranscript of snippet objects.
+                # In v0.x, it returns list[dict]. Normalize both to list[dict].
+                fetched = t.fetch()
+                entries = []
+                for item in fetched:
+                    if isinstance(item, dict):
+                        entries.append(item)
+                    else:
+                        entries.append({
+                            "start": getattr(item, "start", 0),
+                            "duration": getattr(item, "duration", 0),
+                            "text": getattr(item, "text", ""),
+                        })
 
                 title, duration = "Unknown", 0
                 try:
@@ -300,17 +321,31 @@ def run_transcription(job_id: str, url: str, language: str, model_size: str):
                 log.info("caption path failed (%s), falling back to whisper", e)
 
         # Path 2: yt-dlp + faster-whisper
-        # Try yt-dlp's default client auto-selection first (handles bot checks best when
-        # combined with cookies), then fall back to forced single clients.
+        # Try default client auto-selection first, then clients known to bypass
+        # SABR streaming (tv_embedded, web_embedded), then older fallbacks.
         job_update(job_id, status="downloading", progress="downloading audio")
         errors = []
         info = None
-        for client in (None, "android", "ios", "mweb", "web"):
+        for client in (None, "tv_embedded", "web_embedded", "ios", "android_embedded", "mweb"):
             try:
                 info = ydl_download(url, out_dir, player_client=client)
+                # Verify a non-empty file was produced before accepting
+                import glob as _glob
+                audio_files = [
+                    f for f in _glob.glob(os.path.join(out_dir, "audio.*"))
+                    if not f.endswith(".part") and not f.endswith(".ytdl")
+                    and os.path.getsize(f) > 0
+                ]
+                if not audio_files:
+                    # Empty download — SABR or similar, try next client
+                    for stale in _glob.glob(os.path.join(out_dir, "audio.*")):
+                        try: os.remove(stale)
+                        except Exception: pass
+                    raise RuntimeError("download produced empty file")
                 break
             except Exception as e:
                 errors.append(f"{client or 'default'}: {e}")
+                info = None
         if info is None:
             raise RuntimeError("yt-dlp failed on all clients: " + " | ".join(errors))
 
