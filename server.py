@@ -211,7 +211,6 @@ def ydl_meta(url: str) -> dict:
     opts = {
         "skip_download": True,
         "quiet": True,
-        "extractor_args": {"youtube": {"player_client": ["android"]}},
     }
     if _COOKIE_FILE:
         opts["cookiefile"] = _COOKIE_FILE
@@ -219,13 +218,14 @@ def ydl_meta(url: str) -> dict:
         return ydl.extract_info(url, download=False)
 
 
-def ydl_download(url: str, out_dir: str, player_client: str) -> dict:
+def ydl_download(url: str, out_dir: str, player_client: Optional[str] = None) -> dict:
     opts = {
         "format": "bestaudio/best",
         "outtmpl": f"{out_dir}/audio.%(ext)s",
         "quiet": True,
-        "extractor_args": {"youtube": {"player_client": [player_client]}},
     }
+    if player_client:
+        opts["extractor_args"] = {"youtube": {"player_client": [player_client]}}
     if _COOKIE_FILE:
         opts["cookiefile"] = _COOKIE_FILE
     with yt_dlp.YoutubeDL(opts) as ydl:
@@ -300,15 +300,17 @@ def run_transcription(job_id: str, url: str, language: str, model_size: str):
                 log.info("caption path failed (%s), falling back to whisper", e)
 
         # Path 2: yt-dlp + faster-whisper
+        # Try yt-dlp's default client auto-selection first (handles bot checks best when
+        # combined with cookies), then fall back to forced single clients.
         job_update(job_id, status="downloading", progress="downloading audio")
         errors = []
         info = None
-        for client in ("android", "ios", "mweb", "web"):
+        for client in (None, "android", "ios", "mweb", "web"):
             try:
                 info = ydl_download(url, out_dir, player_client=client)
                 break
             except Exception as e:
-                errors.append(f"{client}: {e}")
+                errors.append(f"{client or 'default'}: {e}")
         if info is None:
             raise RuntimeError("yt-dlp failed on all clients: " + " | ".join(errors))
 
