@@ -57,6 +57,13 @@ log "Creating data dir at ${DATA_DIR}"
 mkdir -p "${DATA_DIR}"
 chown -R "${RUN_USER}:${RUN_USER}" "${APP_DIR}"
 
+log "Configuring yt-dlp to allow remote-components (required for YouTube JS challenges)"
+RUN_HOME="$(getent passwd "${RUN_USER}" | cut -d: -f6)"
+sudo -u "${RUN_USER}" mkdir -p "${RUN_HOME}/.config/yt-dlp"
+sudo -u "${RUN_USER}" tee "${RUN_HOME}/.config/yt-dlp/config" > /dev/null <<'YTDLP_CFG'
+--remote-components ejs:github
+YTDLP_CFG
+
 log "Setting up Python venv and installing dependencies"
 sudo -u "${RUN_USER}" bash <<EOF
 set -e

@@ -329,7 +329,8 @@ def run_transcription(job_id: str, url: str, language: str, model_size: str):
         job_update(job_id, status="downloading", progress="downloading audio")
         errors = []
         info = None
-        for client in (None, "tv_embedded", "web_embedded", "ios", "android", "mweb"):
+        # 'None' lets yt-dlp pick (usually tries tv, web_safari, android_vr)
+        for client in (None, "web_embedded", "ios", "android_vr", "android", "mweb"):
             try:
                 info = ydl_download(url, out_dir, player_client=client)
                 # Verify a non-empty file was produced before accepting
