@@ -12,9 +12,7 @@ tmp/
 data/
 
 # Secrets — never commit
-cookies.txt
 cookies.b64
-*cookies*.txt
 *.pem
 *.key
 .secrets/
