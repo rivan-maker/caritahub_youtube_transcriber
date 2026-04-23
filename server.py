@@ -219,13 +219,16 @@ def ydl_meta(url: str) -> dict:
 
 
 def ydl_download(url: str, out_dir: str, player_client: Optional[str] = None) -> dict:
-    # Prefer direct HTTP audio (m4a/webm) over HLS (m3u8_native) — YouTube serves
-    # HLS via SABR for some clients, which produces empty downloads.
+    # YouTube on cloud IPs sometimes only serves m3u8 streams (SABR-affected,
+    # return empty bytes) + format 18 (direct https mp4 360p w/ audio).
+    # Strategy: prefer direct-HTTP audio-only, then ANY direct-HTTP format,
+    # then fall back to anything (incl. m3u8). ffmpeg/av extracts audio from mp4 fine.
     opts = {
         "format": (
             "bestaudio[protocol^=http][ext=m4a]/"
             "bestaudio[protocol^=http][ext=webm]/"
             "bestaudio[protocol!=m3u8_native]/"
+            "best[protocol^=http]/"
             "bestaudio/best"
         ),
         "outtmpl": f"{out_dir}/audio.%(ext)s",
