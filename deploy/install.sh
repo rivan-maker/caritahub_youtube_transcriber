@@ -34,14 +34,24 @@ if [[ ! -f "${APP_DIR}/server.py" ]]; then
     exit 1
 fi
 
-log "Installing system packages (Python 3.11, ffmpeg, git)"
+log "Installing system packages (Python 3.11, ffmpeg, git, unzip)"
 apt-get update
-apt-get install -y software-properties-common curl
+apt-get install -y software-properties-common curl unzip
 if ! command -v python3.11 &>/dev/null; then
     add-apt-repository -y ppa:deadsnakes/ppa
     apt-get update
 fi
 apt-get install -y python3.11 python3.11-venv ffmpeg git
+
+if ! command -v deno &>/dev/null; then
+    log "Installing Deno (required by yt-dlp for YouTube JS runtime)"
+    curl -fsSL https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip -o /tmp/deno.zip
+    unzip -oq /tmp/deno.zip -d /tmp/
+    mv /tmp/deno /usr/local/bin/
+    chmod +x /usr/local/bin/deno
+    rm /tmp/deno.zip
+fi
+deno --version | head -1
 
 log "Creating data dir at ${DATA_DIR}"
 mkdir -p "${DATA_DIR}"
