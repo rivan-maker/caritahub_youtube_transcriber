@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.env.*
+.DS_Store
+*.db
+*.sqlite
+tmp/
+data/
+
+# Secrets — never commit
+cookies.txt
+cookies.b64
+*cookies*.txt
+*cookies*.b64
+*.pem
+*.key
+.secrets/
+API_KEY*
