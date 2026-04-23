@@ -15,7 +15,6 @@ data/
 cookies.txt
 cookies.b64
 *cookies*.txt
-*cookies*.b64
 *.pem
 *.key
 .secrets/
