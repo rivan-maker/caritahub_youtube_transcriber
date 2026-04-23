@@ -13,6 +13,7 @@ set -euo pipefail
 YOUTUBE_COOKIES="${YOUTUBE_COOKIES:-}"
 DEFAULT_MODEL="${DEFAULT_MODEL:-base}"
 JOB_TTL_SECONDS="${JOB_TTL_SECONDS:-86400}"
+APP_PORT="${APP_PORT:-8001}"
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DATA_DIR="${APP_DIR}/data"
@@ -71,8 +72,8 @@ EOF
 chmod 600 "${ENV_FILE}"
 chown "${RUN_USER}:${RUN_USER}" "${ENV_FILE}"
 
-log "Installing systemd service"
-sed "s|__APP_DIR__|${APP_DIR}|g; s|__RUN_USER__|${RUN_USER}|g" \
+log "Installing systemd service (port ${APP_PORT})"
+sed "s|__APP_DIR__|${APP_DIR}|g; s|__RUN_USER__|${RUN_USER}|g; s|__APP_PORT__|${APP_PORT}|g" \
     "${APP_DIR}/deploy/caritahub-transcriber.service" \
     > /etc/systemd/system/${SERVICE_NAME}.service
 systemctl daemon-reload
@@ -86,7 +87,7 @@ if ! systemctl is-active --quiet "${SERVICE_NAME}"; then
 fi
 
 log "Health check"
-curl -fsS http://127.0.0.1:8000/api/v1/health
+curl -fsS http://127.0.0.1:${APP_PORT}/api/v1/health
 echo
 
 PUBLIC_IP="$(curl -fsS https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]' || echo '<your-eip>')"
@@ -95,14 +96,14 @@ cat <<SUMMARY
 ─────────────────────────────────────────────────────────────────────
 ✅ Deployment complete
 ─────────────────────────────────────────────────────────────────────
-Public URL:    http://${PUBLIC_IP}:8000
-API docs:      http://${PUBLIC_IP}:8000/docs
-Health:        http://${PUBLIC_IP}:8000/api/v1/health
+Public URL:    http://${PUBLIC_IP}:${APP_PORT}
+API docs:      http://${PUBLIC_IP}:${APP_PORT}/docs
+Health:        http://${PUBLIC_IP}:${APP_PORT}/api/v1/health
 
 Send X-API-Key header on every POST/GET/DELETE to /api/v1/transcribe*
-  e.g. curl -H "X-API-Key: ${API_KEY}" http://${PUBLIC_IP}:8000/api/v1/health
+  e.g. curl -H "X-API-Key: ${API_KEY}" http://${PUBLIC_IP}:${APP_PORT}/api/v1/health
 
-⚠️  Make sure your EC2 security group allows inbound TCP 8000 from the
+⚠️  Make sure your EC2 security group allows inbound TCP ${APP_PORT} from the
     IPs that will call this API.
 
 Logs:          sudo journalctl -u ${SERVICE_NAME} -f
