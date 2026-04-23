@@ -48,9 +48,15 @@ logging.basicConfig(
 log = logging.getLogger("caritahub.transcriber")
 
 # ─── Cookie setup (optional) ─────────────────────────────────────────────────
-_cookie_raw = os.environ.get("YOUTUBE_COOKIES", "").strip()
+# Priority: YOUTUBE_COOKIES_FILE (path to cookies.txt) > YOUTUBE_COOKIES (base64 or raw content)
 _COOKIE_FILE: Optional[str] = None
-if _cookie_raw:
+_cookies_file_path = os.environ.get("YOUTUBE_COOKIES_FILE", "").strip()
+_cookie_raw = os.environ.get("YOUTUBE_COOKIES", "").strip()
+
+if _cookies_file_path and os.path.isfile(_cookies_file_path):
+    _COOKIE_FILE = _cookies_file_path
+    log.info("YouTube cookies loaded from file: %s", _cookies_file_path)
+elif _cookie_raw:
     try:
         content = base64.b64decode(_cookie_raw).decode()
     except Exception:
@@ -58,7 +64,7 @@ if _cookie_raw:
     with open(COOKIE_PATH, "w") as f:
         f.write(content)
     _COOKIE_FILE = COOKIE_PATH
-    log.info("YouTube cookies loaded")
+    log.info("YouTube cookies loaded from env var")
 
 # ─── SQLite job store ────────────────────────────────────────────────────────
 _db_lock = threading.Lock()
